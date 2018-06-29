@@ -883,6 +883,9 @@ firebase.admob.showInterstitial = arg => {
       }
 
       const settings = firebase.merge(arg, firebase.admob.defaults);
+      if (typeof settings.callback === "function") {
+        firebase.iosInterstitialCallback = settings.callback;
+      }
       firebase.admob.interstitialView = GADInterstitial.alloc().initWithAdUnitID(settings.iosInterstitialId);
 
       // with interstitials you MUST wait for the ad to load before showing it, so requiring this delegate
@@ -2570,11 +2573,43 @@ class GADInterstitialDelegateImpl extends NSObject implements GADInterstitialDel
   }
 
   public interstitialDidReceiveAd(ad: GADInterstitial): void {
+    if (firebase.iosInterstitialCallback) {
+      firebase.iosInterstitialCallback({
+        state: firebase.AdStates.LOADED
+      });
+    }
+    firebase.notifyInterstitialAdStateListeners({
+      state: firebase.AdStates.LOADED
+    });
     this.callback(ad);
   }
 
   public interstitialDidFailToReceiveAdWithError(ad: GADInterstitial, error: GADRequestError): void {
+    if (firebase.iosInterstitialCallback) {
+      firebase.iosInterstitialCallback({
+        state: firebase.AdStates.FAILED
+      });
+      // Will no longer be used
+      firebase.iosInterstitialCallback = null;
+    }
+    firebase.notifyInterstitialAdStateListeners({
+      state: firebase.AdStates.FAILED
+    });
     this.callback(ad, error);
+  }
+
+  public interstitialDidDismissScreen(_: GADInterstitial) {
+    if (firebase.iosInterstitialCallback) {
+      firebase.iosInterstitialCallback({
+        state: firebase.AdStates.CLOSED
+      });
+
+      // Will no longer be used
+      firebase.iosInterstitialCallback = null;
+    }
+    firebase.notifyInterstitialAdStateListeners({
+      state: firebase.AdStates.CLOSED
+    });
   }
 }
 

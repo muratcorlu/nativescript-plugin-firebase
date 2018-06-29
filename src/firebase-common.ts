@@ -20,6 +20,7 @@ export const firebase: any = {
   instance: null,
   firebaseRemoteConfig: null,
   authStateListeners: [],
+  interstitialAdStateListeners: [],
   _receivedNotificationCallback: null,
   _dynamicLinkCallback: null,
   analytics,
@@ -60,6 +61,11 @@ export const firebase: any = {
       testing: false,
       size: "SMART"
     }
+  },
+  AdStates: {
+    LOADED: "LOADED",
+    FAILED: "FAILED",
+    CLOSED: "CLOSED"
   },
   LoginType: {
     ANONYMOUS: "anonymous",
@@ -113,6 +119,37 @@ export const firebase: any = {
         }
       } catch (ex) {
         console.error("Firebase AuthStateListener failed to trigger", listener, ex);
+      }
+    });
+  },
+  addInterstitialAdStateListener: listener => {
+    if (firebase.interstitialAdStateListeners.indexOf(listener) === -1) {
+      firebase.interstitialAdStateListeners.push(listener);
+    }
+    return true;
+  },
+  removeInterstitialAdStateListener: listener => {
+    const index = firebase.interstitialAdStateListeners.indexOf(listener);
+    if (index >= 0) {
+      firebase.interstitialAdStateListeners.splice(index, 1);
+      return true;
+    } else {
+      return false;
+    }
+  },
+  hasInterstitialAdStateListener: listener => {
+    return firebase.interstitialAdStateListeners.indexOf(listener) >= 0;
+  },
+  notifyInterstitialAdStateListeners: data => {
+    firebase.interstitialAdStateListeners.forEach(listener => {
+      try {
+        if (listener.thisArg) {
+          listener.onInterstitialAdStateChanged.call(listener.thisArg, data);
+        } else {
+          listener.onInterstitialAdStateChanged(data);
+        }
+      } catch (ex) {
+        console.error("Firebase AdStateListener failed to trigger", listener, ex);
       }
     });
   },

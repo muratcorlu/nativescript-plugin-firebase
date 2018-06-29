@@ -89,7 +89,15 @@ Note that an interstitial is supposed to be hidden by clicking the close button,
     iosTestDeviceIds: [ // Android automatically adds the connected device as test device with testing:true, iOS does not
         "45d77bf513dfabc2949ba053da83c0c7b7e87715", // Eddy's iPhone 6s
         "fee4cf319a242eab4701543e4c16db89c722731f"  // Eddy's iPad Pro
-    ]
+    ],
+    callback: function(data) { // Use this callback to know when user closes the Ad.
+        switch (data.state) {
+          case "LOADED": console.log("From Callback: Ad Loaded"); break;
+          case "FAILED": console.log("From Callback: Ad Failed to Load"); break;
+          case "CLOSED": console.log("From Callback: Ad Closed"); break;
+          default: break;
+        }
+    }
   }).then(
       function () {
         console.log("AdMob interstitial showing");
@@ -102,6 +110,32 @@ Note that an interstitial is supposed to be hidden by clicking the close button,
         });
       }
   );
+```
+
+#### Listening to interstitial Ad state changes
+You can use these methods to add interstitial Ad state listeners
+```js
+// configure a listener:
+const listener = {
+  onInterstitialAdStateChanged: function(data) {
+    switch (data.state) {
+      case "LOADED": console.log("Ad Loaded"); break;
+      case "FAILED": console.log("Ad Failed to Load"); break;
+      case "CLOSED": console.log("Ad Closed"); break;
+      default: break;
+    }
+  },
+  thisArg: this
+};
+
+// add the listener:
+firebase.addInterstitialAdStateListener(listener);
+
+// stop listening to interstitial Ad state changes:
+firebase.removeInterstitialAdStateListener(listener);
+
+// check if already listening to interstitial Ad state changes
+firebase.hasInterstitialAdStateListener(listener);
 ```
 
 ## What about the nativescript-admob plugin?

@@ -659,14 +659,38 @@ firebase.admob.showInterstitial = arg => {
       const InterstitialAdListener = com.google.android.gms.ads.AdListener.extend({
         onAdLoaded: () => {
           firebase.admob.interstitialView.show();
+          if (typeof arg.callback === "function") {
+            arg.callback({
+              state: firebase.AdStates.LOADED
+            });
+          }
+          firebase.notifyInterstitialAdStateListeners({
+            state: firebase.AdStates.LOADED
+          });
           resolve();
         },
         onAdFailedToLoad: errorCode => {
+          if (typeof arg.callback === "function") {
+            arg.callback({
+              state: firebase.AdStates.FAILED
+            });
+          }
+          firebase.notifyInterstitialAdStateListeners({
+            state: firebase.AdStates.FAILED
+          });
           reject(errorCode);
         },
         onAdClosed: () => {
           firebase.admob.interstitialView.setAdListener(null);
           firebase.admob.interstitialView = null;
+          if (typeof arg.callback === "function") {
+            arg.callback({
+              state: firebase.AdStates.CLOSED
+            });
+          }
+          firebase.notifyInterstitialAdStateListeners({
+            state: firebase.AdStates.CLOSED
+          });
         }
       });
       firebase.admob.interstitialView.setAdListener(new InterstitialAdListener());

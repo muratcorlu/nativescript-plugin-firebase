@@ -390,6 +390,15 @@ export interface AuthStateChangeListener {
   thisArg?: any;
 }
 
+export interface InterstitialAdStateData {
+  state?: string;
+}
+
+export interface InterstitialAdStateChangeListener {
+  onInterstitialAdStateChanged: (data: InterstitialAdStateData) => void;
+  thisArg?: any;
+}
+
 export interface RemoteConfigProperty {
   key: string;
   default: any;
@@ -613,6 +622,11 @@ export namespace admob {
      *   ["ce97330130c9047ce0d4430d37d713b1", ".."]
      */
     iosTestDeviceIds?: string[];
+
+    /**
+     * Callback
+     */
+    callback?: Function;
   }
 
   function showBanner(options: ShowBannerOptions): Promise<any>;
@@ -810,6 +824,12 @@ export function addAuthStateListener(listener: AuthStateChangeListener): boolean
 export function removeAuthStateListener(listener: AuthStateChangeListener): boolean;
 
 export function hasAuthStateListener(listener: AuthStateChangeListener): boolean;
+
+export function addInterstitialAdStateListener(listener: InterstitialAdStateChangeListener): boolean;
+
+export function removeInterstitialAdStateListener(listener: InterstitialAdStateChangeListener): boolean;
+
+export function hasInterstitialAdStateListener(listener: InterstitialAdStateChangeListener): boolean;
 
 export function getCurrentUser(): Promise<User>;
 

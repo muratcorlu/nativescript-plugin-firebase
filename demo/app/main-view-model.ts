@@ -437,6 +437,21 @@ export class HelloWorldModel extends Observable {
           console.log("firebase.init error: " + error);
         }
     );
+
+    // configure a interstitial ad state listener:
+    const listener = {
+      onInterstitialAdStateChanged: function(data) {
+        switch (data.state) {
+          case "LOADED": console.log("Ad Loaded"); break;
+          case "FAILED": console.log("Ad Failed to Load"); break;
+          case "CLOSED": console.log("Ad Closed"); break;
+          default: break;
+        }
+      },
+      thisArg: this
+    };
+
+    firebase.addInterstitialAdStateListener(listener);
   }
 
   public doLogAnalyticsEvent(): void {
@@ -559,7 +574,15 @@ export class HelloWorldModel extends Observable {
       iosTestDeviceIds: [
         "45d77bf513dfabc2949ba053da83c0c7b7e87715", // Eddy's iPhone 6s
         "fee4cf319a242eab4701543e4c16db89c722731f"  // Eddy's iPad Pro
-      ]
+      ],
+      callback: function(data) {
+        switch (data.state) {
+          case "LOADED": console.log("From Callback: Ad Loaded"); break;
+          case "FAILED": console.log("From Callback: Ad Failed to Load"); break;
+          case "CLOSED": console.log("From Callback: Ad Closed"); break;
+          default: break;
+        }
+      }
     }).then(
         () => {
           console.log("AdMob interstitial showing");
