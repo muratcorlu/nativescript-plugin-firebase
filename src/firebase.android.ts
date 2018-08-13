@@ -73,7 +73,7 @@ const dynamicLinksEnabled = lazy(() => typeof(com.google.android.gms.appinvite) 
                 const authResult = task.getResult();
                 firebase.notifyAuthStateListeners({
                   loggedIn: true,
-                  user: authResult.getUser()
+                  user: toLoginResult(authResult.getUser())
                 });
               }
             }
@@ -177,6 +177,9 @@ firebase.toValue = val => {
     if (Array.isArray(val)) {
       return firebase.toJavaArray(val);
     }
+    if (val instanceof GeoPoint) {
+      return new com.google.firebase.firestore.GeoPoint(val.latitude, val.longitude);
+    }
 
     switch (typeof val) {
       case 'object':
@@ -211,6 +214,7 @@ firebase.toJsObject = javaObj => {
       return Boolean(!!(str === "True" || str === "true"));
     case 'java.lang.String':
       return String(javaObj);
+    case 'java.lang.Integer':
     case 'java.lang.Long':
     case 'java.lang.Double':
       return Number(String(javaObj));
@@ -231,6 +235,13 @@ firebase.toJsObject = javaObj => {
         node[i] = firebase.toJsObject(javaObj.get(i));
       }
       break;
+    case 'android.util.ArrayMap':
+    case 'android.support.v4.util.ArrayMap':
+      node = {};
+      for (let i = 0; i < javaObj.size(); i++) {
+        node[javaObj.keyAt(i)] = firebase.toJsObject(javaObj.valueAt(i));
+      }
+      break;
     default:
       try {
         node = {};
@@ -240,7 +251,7 @@ firebase.toJsObject = javaObj => {
           node[item.getKey()] = firebase.toJsObject(item.getValue());
         }
       } catch (e) {
-        console.log("PLEASE REPORT THIS AT https://github.com/NativeScript/NativeScript/issues: Tried to serialize an unsupported type: javaObj.getClass().getName(), error: " + e);
+        console.log("PLEASE REPORT THIS AT https://github.com/EddyVerbruggen/nativescript-plugin-firebase/issues: Tried to serialize an unsupported type: " + javaObj.getClass().getName() + ", error: " + e);
       }
   }
   return node;
@@ -1014,8 +1025,8 @@ function toLoginResult(user, additionalUserInfo?): User {
     phoneNumber: user.getPhoneNumber(),
     profileImageURL: user.getPhotoUrl() ? user.getPhotoUrl().toString() : null,
     metadata: {
-      creationTimestamp: new Date(user.getMetadata().getCreationTimestamp() as number),
-      lastSignInTimestamp: new Date(user.getMetadata().getLastSignInTimestamp() as number)
+      creationTimestamp: user.getMetadata() ? new Date(user.getMetadata().getCreationTimestamp() as number) : null,
+      lastSignInTimestamp: user.getMetadata() ? new Date(user.getMetadata().getLastSignInTimestamp() as number) : null
     }
   };
 
@@ -1025,7 +1036,7 @@ function toLoginResult(user, additionalUserInfo?): User {
       username: additionalUserInfo.getUsername(),
       isNewUser: additionalUserInfo.isNewUser(),
       profile: firebase.toJsObject(additionalUserInfo.getProfile())
-    }
+    };
   }
 
   return loginResult;
@@ -1724,10 +1735,15 @@ firebase.push = (path, val) => {
       }
 
       const pushInstance = firebase.instance.child(path).push();
-      pushInstance.setValue(firebase.toValue(val));
-      resolve({
-        key: pushInstance.getKey()
-      });
+
+      pushInstance.setValue(firebase.toValue(val))
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener({
+            onSuccess: () => resolve({key: pushInstance.getKey()})
+          }))
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener({
+            onFailure: exception => reject(exception.getMessage())
+          }));
+
     } catch (ex) {
       console.log("Error in firebase.push: " + ex);
       reject(ex);
@@ -1743,8 +1759,14 @@ firebase.setValue = (path, val) => {
         return;
       }
 
-      firebase.instance.child(path).setValue(firebase.toValue(val));
-      resolve();
+      firebase.instance.child(path).setValue(firebase.toValue(val))
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener({
+            onSuccess: () => resolve()
+          }))
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener({
+            onFailure: exception => reject(exception.getMessage())
+          }));
+
     } catch (ex) {
       console.log("Error in firebase.setValue: " + ex);
       reject(ex);
@@ -1760,16 +1782,27 @@ firebase.update = (path, val) => {
         return;
       }
 
+      const onSuccessListener = new com.google.android.gms.tasks.OnSuccessListener({
+        onSuccess: () => resolve()
+      });
+
+      const onFailureListener = new com.google.android.gms.tasks.OnFailureListener({
+        onFailure: exception => reject(exception.getMessage())
+      });
+
       if (typeof val === "object") {
-        firebase.instance.child(path).updateChildren(firebase.toHashMap(val));
+        firebase.instance.child(path).updateChildren(firebase.toHashMap(val))
+            .addOnSuccessListener(onSuccessListener)
+            .addOnFailureListener(onFailureListener);
       } else {
         const lastPartOfPath = path.lastIndexOf("/");
         const pathPrefix = path.substring(0, lastPartOfPath);
         const pathSuffix = path.substring(lastPartOfPath + 1);
         const updateObject = '{"' + pathSuffix + '" : "' + val + '"}';
-        firebase.instance.child(pathPrefix).updateChildren(firebase.toHashMap(JSON.parse(updateObject)));
+        firebase.instance.child(pathPrefix).updateChildren(firebase.toHashMap(JSON.parse(updateObject)))
+            .addOnSuccessListener(onSuccessListener)
+            .addOnFailureListener(onFailureListener);
       }
-      resolve();
     } catch (ex) {
       console.log("Error in firebase.update: " + ex);
       reject(ex);
@@ -1900,8 +1933,14 @@ firebase.remove = path => {
         reject("Run init() first!");
         return;
       }
-      firebase.instance.child(path).setValue(null);
-      resolve();
+
+      firebase.instance.child(path).setValue(null)
+          .addOnSuccessListener(new com.google.android.gms.tasks.OnSuccessListener({
+            onSuccess: () => resolve()
+          }))
+          .addOnFailureListener(new com.google.android.gms.tasks.OnFailureListener({
+            onFailure: exception => reject(exception.getMessage())
+          }));
     } catch (ex) {
       console.log("Error in firebase.remove: " + ex);
       reject(ex);
@@ -2099,6 +2138,128 @@ firebase.invites.getInvitation = () => {
     }
   });
 };
+
+class FirestoreWriteBatch implements firestore.WriteBatch {
+
+  public nativeWriteBatch: com.google.firebase.firestore.WriteBatch;
+
+  public set = (documentRef: firestore.DocumentReference, data: firestore.DocumentData, options?: firestore.SetOptions): firestore.WriteBatch => {
+    if (options && options.merge) {
+      this.nativeWriteBatch.set(documentRef.android, firebase.toValue(data), com.google.firebase.firestore.SetOptions.merge());
+    } else {
+      this.nativeWriteBatch.set(documentRef.android, firebase.toValue(data));
+    }
+    return this;
+  };
+
+  public update = (documentRef: firestore.DocumentReference, data: firestore.UpdateData): firestore.WriteBatch => {
+    this.nativeWriteBatch.update(documentRef.android, firebase.toValue(data));
+    return this;
+  };
+
+  public delete = (documentRef: firestore.DocumentReference): firestore.WriteBatch => {
+    this.nativeWriteBatch.delete(documentRef.android);
+    return this;
+  };
+
+  public commit(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const onCompleteListener = new com.google.android.gms.tasks.OnCompleteListener({
+        onComplete: task => {
+          if (!task.isSuccessful()) {
+            const ex = task.getException();
+            reject(ex && ex.getReason ? ex.getReason() : ex);
+          } else {
+            resolve();
+          }
+        }
+      });
+      this.nativeWriteBatch.commit().addOnCompleteListener(onCompleteListener);
+    });
+  };
+}
+
+firebase.firestore.batch = (): firestore.WriteBatch => {
+  const batch = new FirestoreWriteBatch();
+  batch.nativeWriteBatch = com.google.firebase.firestore.FirebaseFirestore.getInstance().batch();
+  return batch;
+};
+
+firebase.firestore.runTransaction = (updateFunction: (transaction: firestore.Transaction) => Promise<any>): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    // Why? See the note in the commented 'runTransaction' function below.
+    reject("Not supported on Android. If you need a x-platform implementation, use 'batch' instead.");
+  });
+};
+
+/*
+class FirestoreTransaction implements firestore.Transaction {
+
+  public nativeTransaction: com.google.firebase.firestore.Transaction;
+
+  public get = (documentRef: firestore.DocumentReference): DocumentSnapshot => {
+    const docSnapshot: com.google.firebase.firestore.DocumentSnapshot = this.nativeTransaction.get(documentRef.android);
+    return new DocumentSnapshot(docSnapshot ? docSnapshot.getId() : null, docSnapshot.exists(), firebase.toJsObject(docSnapshot.getData()));
+  };
+
+  public set = (documentRef: firestore.DocumentReference, data: firestore.DocumentData, options?: firestore.SetOptions): firestore.Transaction => {
+    if (options && options.merge) {
+      this.nativeTransaction.set(documentRef.android, firebase.toValue(data), com.google.firebase.firestore.SetOptions.merge());
+    } else {
+      this.nativeTransaction.set(documentRef.android, firebase.toValue(data));
+    }
+    return this;
+  };
+
+  public update = (documentRef: firestore.DocumentReference, data: firestore.UpdateData): firestore.Transaction => {
+    this.nativeTransaction.update(documentRef.android, firebase.toValue(data));
+    return this;
+  };
+
+  public delete = (documentRef: firestore.DocumentReference): firestore.Transaction => {
+    this.nativeTransaction.delete(documentRef.android);
+    return this;
+  }
+};
+
+firebase.firestore.Transaction = (nativeTransaction: com.google.firebase.firestore.Transaction): firestore.Transaction => {
+  const tx = new FirestoreTransaction();
+  tx.nativeTransaction = nativeTransaction;
+  return tx;
+};
+
+firebase.firestore.runTransaction = (updateFunction: (transaction: firestore.Transaction) => Promise<any>): Promise<void> => {
+  return new Promise((resolve, reject) => {
+
+    const onSuccessListenert = new com.google.android.gms.tasks.OnSuccessListener({
+      onSuccess: () => {
+        const i = 1;
+      }
+    });
+
+    const onSuccessListener = new com.google.android.gms.tasks.OnSuccessListener({
+      onSuccess: () => resolve()
+    });
+
+    const onFailureListener = new com.google.android.gms.tasks.OnFailureListener({
+      onFailure: exception => reject(exception.getMessage())
+    });
+
+    // NOTE: Here's the problem: 'apply' is called from java to js, so that makes it run on the main/UI thread,
+    // which is not allowed by Firebase.. so doesn't work in {N}
+    const txFunction = new com.google.firebase.firestore.Transaction.Function({
+      apply: (nativeTransaction: com.google.firebase.firestore.Transaction) => {
+        const tx = new firebase.firestore.Transaction(nativeTransaction);
+        return updateFunction(tx);
+      }
+    });
+
+    com.google.firebase.firestore.FirebaseFirestore.getInstance().runTransaction(txFunction)
+        .addOnSuccessListener(onSuccessListener)
+        .addOnFailureListener(onFailureListener);
+  });
+};
+*/
 
 firebase.firestore.collection = (collectionPath: string): firestore.CollectionReference => {
   try {
@@ -2482,6 +2643,8 @@ firebase.firestore.where = (collectionPath: string, fieldPath: string, opStr: fi
       query = query.whereGreaterThanOrEqualTo(fieldPath, firebase.toValue(value));
     } else if (opStr === ">") {
       query = query.whereGreaterThan(fieldPath, firebase.toValue(value));
+    } else if (opStr === "array-contains") {
+      // TODO
     } else {
       console.log("Illegal argument for opStr: " + opStr);
       return null;

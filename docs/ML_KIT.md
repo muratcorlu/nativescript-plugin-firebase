@@ -56,7 +56,7 @@ Note that (because of how iOS works) we bundle the models you've picked during p
 So if you have a change of heart, re-run the configuration as explained at the top of this document. 
 
 ### Cloud configuration
-To nbe able to use Cloud features you need to do two things:
+To be able to use Cloud features you need to do two things:
 
 1) Enable the Cloud Vision API:
 
@@ -79,7 +79,7 @@ To nbe able to use Cloud features you need to do two things:
 |[Barcode scanning](#barcode-scanning)|✅|
 |[Image labeling](#image-labeling)|✅|✅
 |[Landmark recognition](#landmark-recognition)||✅
-|[Custom model inference](#custom-model-inference)|✅|
+|[Custom model inference](#custom-model-inference)||
 
 *) _Currently detecting faces from still images doesn't work on iOS (from the camera stream works fine tho)._
 
@@ -109,8 +109,6 @@ const firebase = require("nativescript-plugin-firebase");
 
 firebase.mlkit.textrecognition.recognizeTextCloud({
   image: imageSource, // a NativeScript Image or ImageSource, see the demo for examples
-  modelType: "latest", // either "latest" or "stable" (default "stable")
-  maxResults: 15 // default 10
 })
 .then((result: MLKitRecognizeTextCloudResult) => console.log(result.text))
 .catch(errorMessage => console.log("ML Kit error: " + errorMessage));

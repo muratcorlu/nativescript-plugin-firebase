@@ -155,8 +155,23 @@ citiesCollection.doc("LA").set({
 ### `collection.doc().update()`
 Update any number of properties of a document.
 
-Use the special property `firebase.firestore().FieldValue().serverTimestamp()` to update a server timestamp
-(as opposed to a local timestamp, which would be different for every client).
+Note that you can use the special `serverTimestamp()` function to update a server timestamp (as opposed to a local timestamp, which would be different for every client):
+
+#### Web API
+```typescript
+const firebase = require("nativescript-plugin-firebase/app");
+
+firebase.firestore().FieldValue().serverTimestamp()
+```
+
+#### Native API
+```typescript
+import { firestore } from "nativescript-plugin-firebase";
+
+firestore.FieldValue.serverTimestamp()
+```
+
+And this is what an update would look like, using the Web API:
 
 ```typescript
 const sanFranciscoDocument = firebase.firestore().collection("cities").doc("SF");
@@ -222,5 +237,58 @@ query
     });
 ```
 
-## Future work
-Need something else that's not supported yet? Please open an Issue or PR 😚
+### Batched Writes: `batch()`
+To perform a (mixed) sequence of `set`, `update`, and/or `delete` operations in an atomic fashion
+(everything is rolled back if 1 operation fails), use the `batch` feature.
+
+```typescript
+// one batch can set/update/delete multiple documents
+const sanFranciscoDocumentReference: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SF");
+const sacramentoDocumentReference: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SAC");
+
+firebase.firestore().batch()
+    .set(sanFranciscoDocumentReference, {capital: false}, {merge: true})
+    .update(sanFranciscoDocumentReference, {population: 5})
+    .update(sacramentoDocumentReference, {population: 6})
+    .commit()
+    .then(() => console.log("Batch successfully committed"))
+    .catch(error => console.log("Batch error: " + error));
+```
+
+Need proof these batches are atomic? Try deleting and then updating a document 😉
+
+```typescript
+firebase.firestore().batch()
+    .delete(sanFranciscoDocumentReference)
+    .update(sanFranciscoDocumentReference, {population: 7})
+    .commit()
+    .then(() => console.log("Batch successfully committed"))
+    .catch(error => console.log(`Batch error: ${error}`));
+```
+
+### Transactional Updates: `runTransaction()` (iOS only)
+> There's a technical hurdle which prevents this from working on Android.
+
+In contrast to `batch` you can `runTransaction` to also be able to use `get`, but only use `get`
+before calling `set`, `update`, or `delete` (or the transaction will fail).
+
+```typescript
+const sanFranciscoDocumentReference: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SF");
+
+firebase.firestore().runTransaction(transaction => {
+  const doc = transaction.get(sanFranciscoDocumentReference);
+  if (!doc.exists) {
+    console.log("City SF doesn't exist");
+  } else {
+    const newPopulation = doc.data().population + 1;
+    console.log(`Updating city 'SF' to a new population of: ${newPopulation}, and flipping the 'capital' state to ${sfDoc.data().capital}.`);
+
+    transaction
+        .set(sanFranciscoDocumentReference, {capital: !doc.data().capital}, {merge: true})
+        .update(sanFranciscoDocumentReference, {population: newPopulation})
+  }
+  return null;
+})
+   .then(() => console.log("Transaction successfully committed"))
+   .catch(error => console.log(`Transaction error: ${error}`));
+```

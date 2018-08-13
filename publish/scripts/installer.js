@@ -295,7 +295,7 @@ function writePodFile(result) {
     }
     try {
         fs.writeFileSync(directories.ios + '/Podfile',
-`pod 'Firebase/Core', '~> 5.1.0' 
+`pod 'Firebase/Core', '~> 5.5.0' 
 pod 'Firebase/Auth'
 
 # Realtime DB
@@ -551,8 +551,8 @@ dependencies {
     compile "com.android.support:support-compat:$supportVersion"
 
     // make sure you have these versions by updating your local Android SDK's (Android Support repo and Google repo)
-    compile "com.google.firebase:firebase-core:16.0.0"
-    compile "com.google.firebase:firebase-auth:16.0.1"
+    compile "com.google.firebase:firebase-core:16.0.1"
+    compile "com.google.firebase:firebase-auth:16.0.2"
 
     // for reading google-services.json and configuration
     compile "com.google.android.gms:play-services-base:$googlePlayServicesVersion"
@@ -561,19 +561,19 @@ dependencies {
     ` + (!isPresent(result.realtimedb) || isSelected(result.realtimedb) ? `` : `//`) + ` compile "com.google.firebase:firebase-database:16.0.1"
 
     // Cloud Firestore
-    ` + (isSelected(result.firestore) ? `` : `//`) + ` compile "com.google.firebase:firebase-firestore:17.0.1"
+    ` + (isSelected(result.firestore) ? `` : `//`) + ` compile "com.google.firebase:firebase-firestore:17.0.4"
 
     // Remote Config
     ` + (isSelected(result.remote_config) ? `` : `//`) + ` compile "com.google.firebase:firebase-config:16.0.0"
 
     // Crash Reporting
-    ` + (isSelected(result.crash_reporting) && !isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.google.firebase:firebase-crash:16.0.0"
+    ` + (isSelected(result.crash_reporting) && !isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.google.firebase:firebase-crash:16.0.1"
 
     // Crashlytics
     ` + (isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.crashlytics.sdk.android:crashlytics:2.9.3"
 
     // Firebase Cloud Messaging (FCM)
-    ` + (isSelected(result.messaging) ? `` : `//`) + ` compile "com.google.firebase:firebase-messaging:17.0.0"
+    ` + (isSelected(result.messaging) ? `` : `//`) + ` compile "com.google.firebase:firebase-messaging:17.1.0"
 
     // Cloud Storage
     ` + (isSelected(result.storage) ? `` : `//`) + ` compile "com.google.firebase:firebase-storage:16.0.1"
@@ -592,7 +592,7 @@ dependencies {
     ` + (isSelected(result.google_auth) ? `` : `//`) + ` compile "com.google.android.gms:play-services-auth:$googlePlayServicesVersion"
 
     // Firebase Invites / Dynamic Links
-    ` + (isSelected(result.invites) ? `` : `//`) + ` compile "com.google.firebase:firebase-invites:16.0.0"
+    ` + (isSelected(result.invites) ? `` : `//`) + ` compile "com.google.firebase:firebase-invites:16.0.1"
 }
 
 apply plugin: "com.google.gms.google-services"
@@ -624,9 +624,15 @@ module.exports = function($logger, $projectData, hookArgs) {
         if (hookArgs.platform.toLowerCase() === 'android') {
             var sourceGoogleJson = path.join($projectData.appResourcesDirectoryPath, "Android", "google-services.json");
             var destinationGoogleJson = path.join($projectData.platformsDir, "android", "app", "google-services.json");
+            var destinationGoogleJsonAlt = path.join($projectData.platformsDir, "android", "google-services.json");
             if (fs.existsSync(sourceGoogleJson) && fs.existsSync(path.dirname(destinationGoogleJson))) {
                 $logger.out("Copy " + sourceGoogleJson + " to " + destinationGoogleJson + ".");
                 fs.writeFileSync(destinationGoogleJson, fs.readFileSync(sourceGoogleJson));
+                resolve();
+            } else if (fs.existsSync(sourceGoogleJson) && fs.existsSync(path.dirname(destinationGoogleJsonAlt))) {
+                // NativeScript < 4 doesn't have the 'app' folder
+                $logger.out("Copy " + sourceGoogleJson + " to " + destinationGoogleJsonAlt + ".");
+                fs.writeFileSync(destinationGoogleJsonAlt, fs.readFileSync(sourceGoogleJson));
                 resolve();
             } else {
                 $logger.warn("Unable to copy google-services.json.");

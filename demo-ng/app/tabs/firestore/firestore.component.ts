@@ -45,16 +45,14 @@ export class FirestoreComponent {
         .set({
               name: "Woofie",
               last: "lastofwoofie",
-          // note that this only works on iOS (there's a limitation in the Firestore Android SDK)
+              // note that this only works on iOS (there's a limitation in the Firestore Android SDK)
               // updateTsSet: firebase.firestore().FieldValue().serverTimestamp()
             },
             {
               merge: true
             }
         )
-        .then(() => {
-          console.log("Woofie set");
-        })
+        .then(() => console.log("Woofie set"))
         .catch(err => console.log("Setting Woofie failed, error: " + err));
 
 
@@ -74,7 +72,8 @@ export class FirestoreComponent {
       state: "CA",
       country: "USA",
       capital: false,
-      population: 3900000
+      population: 3900000,
+      landmarks: ["lake", "mountain"]
     });
 
     citiesCollection.doc("SAC").set({
@@ -82,7 +81,8 @@ export class FirestoreComponent {
       state: "CA",
       country: "USA",
       capital: true,
-      population: 500000
+      population: 500000,
+      landmarks: ["mountain"]
     });
 
     citiesCollection.doc("DC").set({
@@ -90,7 +90,8 @@ export class FirestoreComponent {
       state: "WA",
       country: "USA",
       capital: true,
-      population: 680000
+      population: 680000,
+      landmarks: ["airport", "lake"]
     });
 
     citiesCollection.doc("TOK").set({
@@ -122,7 +123,8 @@ export class FirestoreComponent {
         .update({
           name: "Woofieupdate",
           last: "updatedwoofie!",
-          updateTs: firebase.firestore().FieldValue().serverTimestamp(),
+          updateTs: firestore.FieldValue.serverTimestamp(),
+          updateTsAlt: firebase.firestore().FieldValue().serverTimestamp(),
           lastKnownLocation: firebase.firestore().GeoPoint(4.34, 5.67)
         })
         .then(() => console.log("Woofie updated"))
@@ -135,7 +137,7 @@ export class FirestoreComponent {
         .then((querySnapshot: firestore.QuerySnapshot) => {
           querySnapshot.forEach(doc => console.log(`${doc.id} => ${JSON.stringify(doc.data())}`));
         })
-        .catch(err => console.log("Get failed, error" + err));
+        .catch(err => console.log("Get failed, error: " + err));
 
     // examples from https://firebase.google.com/docs/firestore/query-data/get-data
     const docRef: firestore.DocumentReference = firebase.firestore().collection("cities").doc("BJ");
@@ -238,7 +240,7 @@ export class FirestoreComponent {
             console.log(`Relatively small Californian city: ${doc.id} => ${JSON.stringify(doc.data())}`);
           });
         })
-        .catch(err => console.log("Where-get failed, error" + err));
+        .catch(err => console.log("Where-get failed, error: " + err));
   }
 
   public firestoreWhereOrderLimit(): void {
@@ -254,7 +256,21 @@ export class FirestoreComponent {
             console.log(`Large Californian city: ${doc.id} => ${JSON.stringify(doc.data())}`);
           });
         })
-        .catch(err => console.log("firestoreWhereOrderLimit failed, error" + err));
+        .catch(err => console.log("firestoreWhereOrderLimit failed, error: " + err));
+  }
+
+  public firestoreWhereCityHasALake(): void {
+    const query: firestore.Query = firebase.firestore().collection("cities")
+        .where("landmarks", "array-contains", "lake");
+
+    query
+        .get()
+        .then((querySnapshot: firestore.QuerySnapshot) => {
+          querySnapshot.forEach(doc => {
+            console.log(`city with a lake: ${doc.id} => ${JSON.stringify(doc.data())}`);
+          });
+        })
+        .catch(err => console.log("firestoreWhereCityHasALake failed, error: " + err));
   }
 
   public firestoreDelete(): void {
@@ -263,16 +279,51 @@ export class FirestoreComponent {
         .then(() => {
           console.log("Woofie deleted");
         })
-        .catch(err => console.log("Delete failed, error" + err));
+        .catch(err => console.log("Delete failed, error: " + err));
   }
 
   public doWebGetValueForCompanies(): void {
     const path = "/companies";
     firebase.database().ref(path)
         .once("value")
-        .then(result => {
-          console.log(`${result.key} => ${JSON.stringify(result.val())}`);
-        })
+        .then(result => console.log(`${result.key} => ${JSON.stringify(result.val())}`))
         .catch(error => console.log("doWebGetValueForCompanies error: " + error));
+  }
+
+  public writeBatch(): void {
+    // one batch can update multiple docs
+    const sfDocRef: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SF");
+    const sacDocRef: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SAC");
+
+    firebase.firestore().batch()
+        .set(sfDocRef, {capital: false}, {merge: true})
+        // .delete(sfDocRef) // Want to verify batches are atomic? With this line enabled, the next line will fail and the entire batch is rolled back correctly 👍
+        .update(sfDocRef, {population: 860100})
+        .update(sacDocRef, {population: 6500100})
+        .commit()
+        .then(() => console.log(`Batch successfully committed`))
+        .catch(error => console.log("Batch error: " + error));
+  }
+
+  public transactionalUpdate(): void {
+    const sfDocRef: firestore.DocumentReference = firebase.firestore().collection("cities").doc("SF");
+
+    firebase.firestore().runTransaction(transaction => {
+      const sfDoc = transaction.get(sfDocRef);
+      if (!sfDoc.exists) {
+        console.log("City SF doesn't exist");
+      } else {
+        const newPopulation = sfDoc.data().population + 1;
+        console.log(`Updating city 'SF' to a new population of: ${newPopulation}, and flipping the 'capital' state to ${sfDoc.data().capital}.`);
+
+        transaction
+            .set(sfDocRef, {capital: !sfDoc.data().capital}, {merge: true})
+            // .delete(sfDocRef) // with this line enabled, the next line will fail and the entire tx is rolled back 👍
+            .update(sfDocRef, {population: newPopulation})
+      }
+      return null;
+    })
+        .then(() => console.log(`Transaction successfully committed`))
+        .catch(error => console.log("doTransaction error: " + error));
   }
 }

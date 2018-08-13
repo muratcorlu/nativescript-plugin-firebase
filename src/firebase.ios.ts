@@ -189,7 +189,7 @@ firebase.addAppDelegateMethods = appDelegate => {
                     if (!error) {
                       firebase.notifyAuthStateListeners({
                         loggedIn: true,
-                        user: authData.user
+                        user: toLoginResult(authData.user)
                       });
                     }
                   });
@@ -197,7 +197,7 @@ firebase.addAppDelegateMethods = appDelegate => {
                   // linking successful, so the user can now log in with either their email address, or however he logged in previously
                   firebase.notifyAuthStateListeners({
                     loggedIn: true,
-                    user: result.user
+                    user: toLoginResult(result.user)
                   });
                 }
               };
@@ -211,7 +211,7 @@ firebase.addAppDelegateMethods = appDelegate => {
                 } else {
                   firebase.notifyAuthStateListeners({
                     loggedIn: true,
-                    user: authData.user
+                    user: toLoginResult(authData.user)
                   });
                 }
               });
@@ -645,7 +645,7 @@ firebase.toJsObject = objCObj => {
           node[key] = firebase.firestore._getDocumentReference(val, path.substring(0, lastSlashIndex), path.substring(lastSlashIndex + 1));
           break;
         case 'FIRGeoPoint':
-          node[key] = firestore.GeoPoint(
+          node[key] = firebase.firestore.GeoPoint(
               (<FIRGeoPoint>val).latitude,
               (<FIRGeoPoint>val).longitude
           );
@@ -1161,7 +1161,7 @@ function toLoginResult(user, additionalUserInfo?: FIRAdditionalUserInfo): User {
       username: additionalUserInfo.username,
       isNewUser: additionalUserInfo.newUser,
       profile: firebase.toJsObject(additionalUserInfo.profile)
-    }
+    };
   }
 
   return loginResult;
@@ -1211,7 +1211,7 @@ firebase.login = arg => {
 
           firebase.notifyAuthStateListeners({
             loggedIn: true,
-            user: authResult.user
+            user: toLoginResult(authResult.user)
           });
         }
       };
@@ -1780,9 +1780,8 @@ firebase.push = (path, val) => {
   return new Promise((resolve, reject) => {
     try {
       const ref = FIRDatabase.database().reference().childByAppendingPath(path).childByAutoId();
-      ref.setValue(val);
-      resolve({
-        key: ref.key
+      ref.setValueWithCompletionBlock(val, (error: NSError, dbRef: FIRDatabaseReference) => {
+        error ? reject(error.localizedDescription) : resolve({key: ref.key});
       });
     } catch (ex) {
       console.log("Error in firebase.push: " + ex);
@@ -1794,8 +1793,9 @@ firebase.push = (path, val) => {
 firebase.setValue = (path, val) => {
   return new Promise((resolve, reject) => {
     try {
-      FIRDatabase.database().reference().childByAppendingPath(path).setValue(val);
-      resolve();
+      FIRDatabase.database().reference().childByAppendingPath(path).setValueWithCompletionBlock(val, (error: NSError, dbRef: FIRDatabaseReference) => {
+        error ? reject(error.localizedDescription) : resolve();
+      });
     } catch (ex) {
       console.log("Error in firebase.setValue: " + ex);
       reject(ex);
@@ -1807,16 +1807,18 @@ firebase.update = (path, val) => {
   return new Promise((resolve, reject) => {
     try {
       if (typeof val === "object") {
-        FIRDatabase.database().reference().childByAppendingPath(path).updateChildValues(val);
+        FIRDatabase.database().reference().childByAppendingPath(path).updateChildValuesWithCompletionBlock(val, (error: NSError, dbRef: FIRDatabaseReference) => {
+          error ? reject(error.localizedDescription) : resolve();
+        });
       } else {
         const lastPartOfPath = path.lastIndexOf("/");
         const pathPrefix = path.substring(0, lastPartOfPath);
         const pathSuffix = path.substring(lastPartOfPath + 1);
         const updateObject = '{"' + pathSuffix + '" : "' + val + '"}';
-        FIRDatabase.database().reference().childByAppendingPath(pathPrefix).updateChildValues(JSON.parse(updateObject));
+        FIRDatabase.database().reference().childByAppendingPath(pathPrefix).updateChildValuesWithCompletionBlock(JSON.parse(updateObject), (error: NSError, dbRef: FIRDatabaseReference) => {
+          error ? reject(error.localizedDescription) : resolve();
+        });
       }
-
-      resolve();
     } catch (ex) {
       console.log("Error in firebase.update: " + ex);
       reject(ex);
@@ -1926,8 +1928,9 @@ firebase.query = (updateCallback, path, options) => {
 firebase.remove = path => {
   return new Promise((resolve, reject) => {
     try {
-      FIRDatabase.database().reference().childByAppendingPath(path).setValue(null);
-      resolve();
+      FIRDatabase.database().reference().childByAppendingPath(path).setValueWithCompletionBlock(null, (error: NSError, dbRef: FIRDatabaseReference) => {
+        error ? reject(error.localizedDescription) : resolve();
+      });
     } catch (ex) {
       console.log("Error in firebase.remove: " + ex);
       reject(ex);
@@ -2108,6 +2111,86 @@ firebase.invites.getInvitation = () => {
   });
 };
 
+firebase.firestore.WriteBatch = (nativeWriteBatch: FIRWriteBatch): firestore.WriteBatch => {
+  class FirestoreWriteBatch implements firestore.WriteBatch {
+    constructor() {
+    }
+
+    public set = (documentRef: firestore.DocumentReference, data: firestore.DocumentData, options?: firestore.SetOptions): firestore.WriteBatch => {
+      fixSpecialFields(data);
+      nativeWriteBatch.setDataForDocumentMerge(<any>data, documentRef.ios, options && options.merge);
+      return this;
+    };
+
+    public update = (documentRef: firestore.DocumentReference, data: firestore.UpdateData): firestore.WriteBatch => {
+      fixSpecialFields(data);
+      nativeWriteBatch.updateDataForDocument(<any>data, documentRef.ios);
+      return this;
+    };
+
+    public delete = (documentRef: firestore.DocumentReference): firestore.WriteBatch => {
+      nativeWriteBatch.deleteDocument(documentRef.ios);
+      return this;
+    };
+
+    commit(): Promise<void> {
+      return new Promise((resolve, reject) => {
+        nativeWriteBatch.commitWithCompletion((error: NSError) => {
+          error ? reject(error.localizedDescription) : resolve();
+        });
+      });
+    }
+  }
+
+  return new FirestoreWriteBatch();
+};
+
+firebase.firestore.batch = (): firestore.WriteBatch => {
+  return new firebase.firestore.WriteBatch(FIRFirestore.firestore().batch());
+};
+
+firebase.firestore.Transaction = (nativeTransaction: FIRTransaction): firestore.Transaction => {
+  class FirestoreTransaction implements firestore.Transaction {
+    constructor() {
+    }
+
+    public get = (documentRef: firestore.DocumentReference): DocumentSnapshot => {
+      const docSnapshot: FIRDocumentSnapshot = nativeTransaction.getDocumentError(documentRef.ios);
+      return new DocumentSnapshot(docSnapshot.exists ? docSnapshot.documentID : null, docSnapshot.exists, firebase.toJsObject(docSnapshot.data()));
+    };
+
+    public set = (documentRef: firestore.DocumentReference, data: firestore.DocumentData, options?: firestore.SetOptions): firestore.Transaction => {
+      fixSpecialFields(data);
+      nativeTransaction.setDataForDocumentMerge(<any>data, documentRef.ios, options && options.merge);
+      return this;
+    };
+
+    public update = (documentRef: firestore.DocumentReference, data: firestore.UpdateData): firestore.Transaction => {
+      fixSpecialFields(data);
+      nativeTransaction.updateDataForDocument(<any>data, documentRef.ios);
+      return this;
+    };
+
+    public delete = (documentRef: firestore.DocumentReference): firestore.Transaction => {
+      nativeTransaction.deleteDocument(documentRef.ios);
+      return this;
+    }
+  }
+
+  return new FirestoreTransaction();
+};
+
+firebase.firestore.runTransaction = (updateFunction: (transaction: firestore.Transaction) => Promise<any>): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    FIRFirestore.firestore().runTransactionWithBlockCompletion(
+        (nativeTransaction: FIRTransaction, err: any) => {
+          const tx = new firebase.firestore.Transaction(nativeTransaction);
+          return updateFunction(tx);
+        },
+        (result, error: NSError) => error ? reject(error.localizedDescription) : resolve());
+  });
+};
+
 firebase.firestore.collection = (collectionPath: string): firestore.CollectionReference => {
   try {
     if (typeof(FIRFirestore) === "undefined") {
@@ -2176,7 +2259,7 @@ firebase.firestore.onCollectionSnapshot = (colRef: FIRCollectionReference, callb
   }
 };
 
-firebase.firestore._getDocumentReference = (fIRDocumentReference, collectionPath, documentPath): firestore.DocumentReference => {
+firebase.firestore._getDocumentReference = (fIRDocumentReference, collectionPath: string, documentPath: string): firestore.DocumentReference => {
   return {
     id: fIRDocumentReference.documentID,
     collection: cp => firebase.firestore.collection(`${collectionPath}/${documentPath}/${cp}`),
@@ -2448,6 +2531,9 @@ firebase.firestore.where = (collectionPath: string, fieldPath: string, opStr: fi
     }
 
     query = query || FIRFirestore.firestore().collectionWithPath(collectionPath);
+    value = value instanceof GeoPoint
+        ? new FIRGeoPoint({latitude: value.latitude, longitude: value.longitude})
+        : value;
 
     if (opStr === "<") {
       query = query.queryWhereFieldIsLessThan(fieldPath, value);
@@ -2459,6 +2545,8 @@ firebase.firestore.where = (collectionPath: string, fieldPath: string, opStr: fi
       query = query.queryWhereFieldIsGreaterThanOrEqualTo(fieldPath, value);
     } else if (opStr === ">") {
       query = query.queryWhereFieldIsGreaterThan(fieldPath, value);
+    } else if (opStr === "array-contains") {
+      query = query.queryWhereFieldArrayContains(fieldPath, value);
     } else {
       console.log("Illegal argument for opStr: " + opStr);
       return null;
