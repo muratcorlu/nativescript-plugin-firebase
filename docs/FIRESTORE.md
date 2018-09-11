@@ -199,6 +199,8 @@ sanFranciscoDocument.delete().then(() => {
 ### `collection.where()`
 Firestore supports advanced querying with the `where` function. Those `where` clauses can be chained to form logical 'AND' queries:
 
+You can use the operators defined in `firestore.WhereFilterOp`, which are: `'<' | '<=' | '==' | '>=' | '>' | 'array-contains'`.
+
 ```typescript
 const citiesCollection = firebase.firestore().collection("cities");
 
@@ -235,6 +237,24 @@ query
         console.log(`Large Californian city: ${doc.id} => ${JSON.stringify(doc.data())}`);
       });
     });
+```
+
+### Paginate data with query cursors
+You can use `startAt`, `startAfter`, `endAt`, and `endBefore` as documented for 'WEB' [here](https://firebase.google.com/docs/firestore/query-data/query-cursors).
+
+Here's an example, grabbing cities ordered by name, starting after 'LA':
+
+```typescript
+firebase.firestore().collection('cities')
+  .doc('LA')
+  .get()
+  .then(doc => {
+    firebase.firestore().collection('cities')
+      .orderBy('name', 'asc')
+      .startAfter(doc)
+      .get()
+      .then(snap => snap.forEach(doc => console.log(doc.id, doc.data())));
+  });
 ```
 
 ### Batched Writes: `batch()`

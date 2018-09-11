@@ -46,11 +46,11 @@ after your app is installed from the Play Store. Add this to your `<resources>/A
 ```xml
 <meta-data
     android:name="com.google.firebase.ml.vision.DEPENDENCIES"
-    android:value="text,face,.." />
+    android:value="ocr,face,.." />
 ```
 
-Replace `text,label,..` by whichever features you need. So if you only need Text recognitions, use `"text"`, but if you want
-to perform Text recognition, Face detection, Barcode scanning, and Image labeling on-device, use `"text,face,barcode,label"`.
+Replace `ocr,label,..` by whichever features you need. So if you only need Text recognitions, use `"ocr"`, but if you want
+to perform Text recognition, Face detection, Barcode scanning, and Image labeling on-device, use `"ocr,face,barcode,label"`.
 
 Note that (because of how iOS works) we bundle the models you've picked during plugin configuration with your app.
 So if you have a change of heart, re-run the configuration as explained at the top of this document. 
@@ -91,26 +91,26 @@ To be able to use Cloud features you need to do two things:
 #### Still image (on-device)
 
 ```typescript
-import { MLKitRecognizeTextOnDeviceResult } from "nativescript-plugin-firebase/mlkit/textrecognition";
+import { MLKitRecognizeTextResult } from "nativescript-plugin-firebase/mlkit/textrecognition";
 const firebase = require("nativescript-plugin-firebase");
 
 firebase.mlkit.textrecognition.recognizeTextOnDevice({
   image: imageSource // a NativeScript Image or ImageSource, see the demo for examples
-}).then((result: MLKitRecognizeTextOnDeviceResult) => { // just look at this type to see what else is returned
-  console.log(result.blocks.map(block => block.text).join(""));
+}).then((result: MLKitRecognizeTextResult) => { // just look at this type to see what else is returned
+  console.log(result.text ? result.text : "");
 }).catch(errorMessage => console.log("ML Kit error: " + errorMessage));
 ```
 
 #### Still image (cloud)
 
 ```typescript
-import { MLKitRecognizeTextCloudResult } from "nativescript-plugin-firebase/mlkit/textrecognition";
+import { MLKitRecognizeTextResult } from "nativescript-plugin-firebase/mlkit/textrecognition";
 const firebase = require("nativescript-plugin-firebase");
 
 firebase.mlkit.textrecognition.recognizeTextCloud({
   image: imageSource, // a NativeScript Image or ImageSource, see the demo for examples
 })
-.then((result: MLKitRecognizeTextCloudResult) => console.log(result.text))
+.then((result: MLKitRecognizeTextResult) => console.log(result.text ? result.text : ""))
 .catch(errorMessage => console.log("ML Kit error: " + errorMessage));
 ```
 
@@ -120,11 +120,11 @@ The exact details of using the live camera view depend on whether or not you're 
 You can use any view-related property you like as we're extending `ContentView`.
 So things like `class`, `row`, `width`, `horizontalAlignment`, `style` are all valid properties.
 
-Plugin-specific are the optional property `processEveryNthFrame` and optional event `scanResult`.
+Plugin-specific are the optional properties `processEveryNthFrame` and `torchOn`, and optional event `scanResult`.
 You can `processEveryNthFrame` set to a lower value than the default (5) to put less strain on the device.
 Especially 'Face detection' seems a bit more CPU intensive, but for 'Text recognition' the default is fine.
 
-> Look at [the demo app](https://github.com/EddyVerbruggen/nativescript-plugin-firebase/tree/master/demo-ng) to see how to wire up that `onTextRecognitionResult` function. 
+> Look at [the demo app](https://github.com/EddyVerbruggen/nativescript-plugin-firebase/tree/master/demo-ng) to see how to wire up that `onTextRecognitionResult` function, and how to wire `torchOn` to a `Switch`. 
 
 ##### Angular / Vue
 Register a custom element like so in the component/module:
@@ -142,6 +142,7 @@ Now you're able to use the registered element in the view:
     width="260"
     height="380"
     processEveryNthFrame="10"
+    [torchOn]="torchOn"
     (scanResult)="onTextRecognitionResult($event)">
 </MLKitTextRecognition>
 ```
@@ -202,6 +203,7 @@ registerElement("MLKitFaceDetection", () => require("nativescript-plugin-firebas
     detectionMode="accurate"
     enableFaceTracking="true"
     minimumFaceSize="0.2"
+    [torchOn]="torchOn"
     (scanResult)="onFaceDetectionResult($event)">
 </MLKitFaceDetection>
 ```
@@ -238,9 +240,13 @@ registerElement("MLKitBarcodeScanner", () => require("nativescript-plugin-fireba
     width="260"
     height="380"
     formats="QR_CODE, EAN_8, EAN_13"
+    [torchOn]="torchOn"
     (scanResult)="onBarcodeScanningResult($event)">
 </MLKitBarcodeScanner>
 ```
+
+Note that `formats` is optional but recommended for better recognition performance. Supported types:
+`CODE_128`, `CODE_39`, `CODE_93`, `CODABAR`, `DATA_MATRIX`, `EAN_13`, `EAN_8`, `ITF`, `QR_CODE`, `UPC_A`, `UPC_E`, `PDF417`, `AZTEC`.
 
 ### Image labeling
 <img src="https://raw.githubusercontent.com/EddyVerbruggen/nativescript-plugin-firebase/master/docs/images/features/mlkit_text_image_labeling.png" height="153px" alt="ML Kit - Image labeling"/>
@@ -289,6 +295,7 @@ registerElement("MLKitImageLabeling", () => require("nativescript-plugin-firebas
     width="260"
     height="380"
     confidenceThreshold="0.6"
+    [torchOn]="torchOn"
     (scanResult)="onImageLabelingResult($event)">
 </MLKitImageLabeling>
 ```

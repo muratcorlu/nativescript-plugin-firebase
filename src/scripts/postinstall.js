@@ -2967,7 +2967,11 @@ function promptQuestions() {
         default: 'n'
     }, {
         name: 'invites',
-        description: 'Are you using Firebase Invites and/or Dynamic Links? (y/n)',
+        description: 'Are you using Firebase Invites? (y/n)',
+        default: 'n'
+    }, {
+        name: 'dynamic_links',
+        description: 'Are you using Firebase Dynamic Links? (y/n)',
         default: 'n'
     }, {
       name: 'ml_kit',
@@ -3037,7 +3041,7 @@ function echoAndroidManifestChanges(result) {
     if (isSelected(result.ml_kit)) {
       var selectedFeatures = [];
       if (isSelected(result.ml_kit_text_recognition)) {
-        selectedFeatures.push("text");
+        selectedFeatures.push("ocr");
       }
       if (isSelected(result.ml_kit_barcode_scanning)) {
         selectedFeatures.push("barcode");
@@ -3093,7 +3097,7 @@ function writePodFile(result) {
     }
     try {
         fs.writeFileSync(directories.ios + '/Podfile',
-`pod 'Firebase/Core', '~> 5.5.0' 
+`pod 'Firebase/Core', '~> 5.6.0' 
 pod 'Firebase/Auth'
 
 # Realtime DB
@@ -3131,8 +3135,11 @@ end`) + `
 # AdMob
 ` + (isSelected(result.admob) ? `` : `#`) + `pod 'Firebase/AdMob'
 
-# Invites / Dynamic Links
+# Invites
 ` + (isSelected(result.invites) ? `` : `#`) + `pod 'Firebase/Invites'
+
+# Dynamic Links
+` + (isSelected(result.dynamic_links) ? `` : `#`) + `pod 'Firebase/DynamicLinks'
 
 # ML Kit
 ` + (isSelected(result.ml_kit) ? `` : `#`) + `pod 'Firebase/MLVision'
@@ -3349,8 +3356,8 @@ dependencies {
     compile "com.android.support:support-compat:$supportVersion"
 
     // make sure you have these versions by updating your local Android SDK's (Android Support repo and Google repo)
-    compile "com.google.firebase:firebase-core:16.0.1"
-    compile "com.google.firebase:firebase-auth:16.0.2"
+    compile "com.google.firebase:firebase-core:16.0.3"
+    compile "com.google.firebase:firebase-auth:16.0.3"
 
     // for reading google-services.json and configuration
     compile "com.google.android.gms:play-services-base:$googlePlayServicesVersion"
@@ -3359,19 +3366,19 @@ dependencies {
     ` + (!isPresent(result.realtimedb) || isSelected(result.realtimedb) ? `` : `//`) + ` compile "com.google.firebase:firebase-database:16.0.1"
 
     // Cloud Firestore
-    ` + (isSelected(result.firestore) ? `` : `//`) + ` compile "com.google.firebase:firebase-firestore:17.0.4"
+    ` + (isSelected(result.firestore) ? `` : `//`) + ` compile "com.google.firebase:firebase-firestore:17.1.0"
 
     // Remote Config
     ` + (isSelected(result.remote_config) ? `` : `//`) + ` compile "com.google.firebase:firebase-config:16.0.0"
 
     // Crash Reporting
-    ` + (isSelected(result.crash_reporting) && !isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.google.firebase:firebase-crash:16.0.1"
+    ` + (isSelected(result.crash_reporting) && !isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.google.firebase:firebase-crash:16.2.0"
 
     // Crashlytics
     ` + (isSelected(result.crashlytics) ? `` : `//`) + ` compile "com.crashlytics.sdk.android:crashlytics:2.9.3"
 
     // Firebase Cloud Messaging (FCM)
-    ` + (isSelected(result.messaging) ? `` : `//`) + ` compile "com.google.firebase:firebase-messaging:17.1.0"
+    ` + (isSelected(result.messaging) ? `` : `//`) + ` compile "com.google.firebase:firebase-messaging:17.3.0"
 
     // Cloud Storage
     ` + (isSelected(result.storage) ? `` : `//`) + ` compile "com.google.firebase:firebase-storage:16.0.1"
@@ -3380,17 +3387,20 @@ dependencies {
     ` + (isSelected(result.admob) ? `` : `//`) + ` compile "com.google.firebase:firebase-ads:15.0.1"
 
     // ML Kit
-    ` + (isSelected(result.ml_kit) ? `` : `//`) + ` compile "com.google.firebase:firebase-ml-vision:16.0.0"
+    ` + (isSelected(result.ml_kit) ? `` : `//`) + ` compile "com.google.firebase:firebase-ml-vision:17.0.0"
     ` + (isSelected(result.ml_kit_image_labeling) ? `` : `//`) + ` compile "com.google.firebase:firebase-ml-vision-image-label-model:15.0.0"
 
     // Facebook Authentication
-    ` + (isSelected(result.facebook_auth) ? `` : `//`) + ` compile ("com.facebook.android:facebook-android-sdk:4.+"){ exclude group: 'com.google.zxing' }
+    ` + (isSelected(result.facebook_auth) ? `` : `//`) + ` compile ("com.facebook.android:facebook-android-sdk:4.35.0"){ exclude group: 'com.google.zxing' }
 
     // Google Sign-In Authentication
     ` + (isSelected(result.google_auth) ? `` : `//`) + ` compile "com.google.android.gms:play-services-auth:$googlePlayServicesVersion"
 
-    // Firebase Invites / Dynamic Links
-    ` + (isSelected(result.invites) ? `` : `//`) + ` compile "com.google.firebase:firebase-invites:16.0.1"
+    // Firebase Invites
+    ` + (isSelected(result.invites) ? `` : `//`) + ` compile "com.google.firebase:firebase-invites:16.0.3"
+
+    // Firebase Dynamic Links
+    ` + (isSelected(result.dynamic_links) ? `` : `//`) + ` compile "com.google.firebase:firebase-dynamic-links:16.1.1"
 }
 
 apply plugin: "com.google.gms.google-services"
@@ -3498,7 +3508,7 @@ module.exports = function($logger, $projectData) {
 
             let gradlePattern = /classpath ('|")com\\.android\\.tools\\.build:gradle:\\d+\\.\\d+\\.\\d+('|")/;
             let googleServicesPattern = /classpath ('|")com\\.google\\.gms:google-services:\\d+\\.\\d+\\.\\d+('|")/;
-            let latestGoogleServicesPlugin = 'classpath "com.google.gms:google-services:4.0.1"';
+            let latestGoogleServicesPlugin = 'classpath "com.google.gms:google-services:4.1.0"';
             if (googleServicesPattern.test(buildGradleContent)) {
                 buildGradleContent = buildGradleContent.replace(googleServicesPattern, latestGoogleServicesPlugin);
             } else {

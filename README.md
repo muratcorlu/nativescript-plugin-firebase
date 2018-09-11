@@ -37,6 +37,8 @@ Open your Firebase project at the Google console and click 'Add app' to add an i
 
 * Android: `google-services.json` which you'll add to your NativeScript project at `app/App_Resources/Android/google-services.json`
 
+Note: for using separate versions of these files for dev/prod environments see [this section](#separation-of-environments)
+
 ## Installation
 If you rather watch a (slightly outdated) video explaining the steps then check out this step-by-step guide - you'll also learn how to
 add iOS and Android support to the Firebase console and how to integrate anonymous authentication:
@@ -250,21 +252,46 @@ Update your local Android SDKs:
 Just run `$ANDROID_HOME/tools/bin/sdkmanager --update` from a command prompt
 or launch the SDK manager from Android Studio, expand `Extras` and install any pending updates.
 
-#### Found play-services:10.A.B, but version 11.X.Y is needed..
+#### Found play-services:A.C.D, but version B.X.Y is needed..
 Update your Android bits like the issue above and reinstall the android platform in your project.
 
 #### `include.gradle`: Failed to apply plugin .. For input string: "+"
 You probably have another plugin depending on Google Play Services (Google Maps, perhaps).
 We need to pin to a specific play services version to play nice with others, so open `app/App_Resources/Android/app.gradle` and add:
 
-```
+```js
 android {  
   // other stuff here
 
   project.ext {
-    googlePlayServicesVersion = "11.8.0"
+    googlePlayServicesVersion = "15.0.0"
   }
 }
 ```
 
-Where `"11.8.0"` is best set to the same value as the `firebaseVersion` value in [this file](https://github.com/EddyVerbruggen/nativescript-plugin-firebase/blob/master/src/platforms/android/include.gradle).
+Where `"15.0.0"` is best set to the same value as the `googlePlayServicesVersion` value in [this file](https://github.com/EddyVerbruggen/nativescript-plugin-firebase/blob/48a99ccd2a0f590c37080b1a252173ea9b996e9f/publish/scripts/installer.js#L540).
+
+## Separation of Environments
+
+It is possible to use different development and production environments by using multiple `GoogleService-Info.plist` and `google-services.json` files.
+
+### Setup
+1. Create two separate Firebase projects (e.g. `myproject` and `myproject-dev`) and configure them with the same package name
+2. Download the `plist` and `json` files for both projects and put them in the relevant directories with either `.dev` or `.prod` appended to the file names, so you have the following files in place:
+
+    * iOS
+       * `app/App_Resources/iOS/GoogleService-Info.plist.dev`
+       * `app/App_Resources/iOS/GoogleService-Info.plist.prod`
+    * Android
+       * `app/App_Resources/Android/google-services.json.dev`
+       * `app/App_Resources/Android/google-services.json.prod`
+
+Note: if you currently have the `storageBucket` property in the `firebase.init()` then remove it (not mandatory anymore as of version `6.5.0` of this plugin), so it will be taken automatically from the relevant google services `plist` and `json` files.
+
+### Build
+The after-prepare hook of this plugin will now choose either the `dev` or the `prod` version of your google services `plist` and `json` files depending on how you run your build:
+
+* `prod` will be selected if you run with either the `--release`, `--env.prod` or `--env.production` flags
+* `dev` will be selected if you do not run with the above flags
+
+Note: if you do not have both `dev` and `prod` files in place, the regular `GoogleService-Info.plist` and `google-services.json` files will be used.

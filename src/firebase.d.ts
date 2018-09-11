@@ -80,6 +80,12 @@ export enum ServerValue {
  */
 export interface InitOptions {
   /**
+   * Allow the app to send analytics data to Firebase.
+   * Can also be set later with analytics.setAnalyticsCollectionEnabled.
+   * Default true.
+   */
+  analyticsCollectionEnabled?: boolean;
+  /**
    * Allow disk persistence. Default true for Firestore, false for regular Firebase DB.
    */
   persist?: boolean;
@@ -727,13 +733,15 @@ export namespace firestore {
   }
 
   export interface DocumentSnapshot {
+    ios?: any; /* FIRDocumentSnapshot */
+    android?: any; /* com.google.firebase.firestore.DocumentSnapshot */
     id: string;
     exists: boolean;
-
     data(): DocumentData;
   }
 
   export interface DocumentReference {
+    discriminator: "docRef";
     id: string;
     collection: (collectionPath: string) => CollectionReference;
     set: (document: any, options?: SetOptions) => Promise<void>;
@@ -757,6 +765,14 @@ export namespace firestore {
     limit(limit: number): Query;
 
     onSnapshot(callback: (snapshot: QuerySnapshot) => void): () => void;
+
+    startAt(snapshot: DocumentSnapshot): Query;
+
+    startAfter(snapshot: DocumentSnapshot): Query;
+
+    endAt(snapshot: DocumentSnapshot): Query;
+
+    endBefore(snapshot: DocumentSnapshot): Query;
   }
 
   export interface CollectionReference extends Query {
@@ -876,6 +892,8 @@ export function addOnMessageReceivedCallback(onMessageReceived: (data: Message) 
 
 export function addOnPushTokenReceivedCallback(onPushTokenReceived: (data: string) => void): Promise<any>;
 
+export function registerForInteractivePush(model: any): void;
+
 export function getCurrentPushToken(): Promise<string>;
 
 export function unregisterForPushNotifications(): Promise<void>;
@@ -883,6 +901,8 @@ export function unregisterForPushNotifications(): Promise<void>;
 export function subscribeToTopic(topicName): Promise<any>;
 
 export function unsubscribeFromTopic(topicName): Promise<any>;
+
+export function areNotificationsEnabled(): boolean;
 
 // dynamic links
 export function addOnDynamicLinkReceivedCallback(onDynamicLinkReceived: (callBackData: dynamicLinks.DynamicLinkCallbackData) => void): Promise<any>;
